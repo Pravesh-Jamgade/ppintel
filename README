@@ -1,3 +1,30 @@
+Pinplay
+Allows us to maintain the same program execution behaviour across multiple runs. To achieve that it generates Pinballs. Pinballs are generated once by running an executable with input data. Then for further runs or debuging or simulation of the same executable and input data, we dont require executable and input data. Pinball essesntialy replaces input data and binary. Pinballs offer the repeatability of execution. 
+Pintool is used to generate pinballs. Default pintool enabled for pinplay is provided in pin_kit. 
+Pinpoint is an enhanced version of Simpoint. The pinpoint software pipeline use the Pinplay, Pintool and Simpoint
+The phases of generating is as follows, terms will be detailed later:
+Any Pintool (enabled with pinplay) + Program + Input Data → Whole_program_pinball
+Whole_program_pinball → BBV
+BBV + Simpoint tool → Pinpoint
+Pinpoint + Tracer Pintool (enabled with pinplay)  → Region Pinballs + Trace (from pintool, our goal)
+
+There are scripts that can do all the above steps easily:
+Run help to understand each of the given options.
+This will generate *.pp folder, its out pinpoint folder. The pintool i have used is pinplay-driver.so. The cpp is in pinplay/examples directory. To build pintool run make. The following script is in pinplay/scripts directory. 
+ python3 pinpoints.py --pinplayhome=$PIN_HOME 
+-l -r -b -s -p -R --ldv 
+--program_name=cc 
+--input_name=g15 
+--command="/media/pravesh/A/Champsim2/tracer/pin/gapbs-exp/./cc -g15" 
+--mode=mt
+
+Moving on to generate the trace, we need our tracer, It is in the examples directory as well.
+Following script replay the execution from pinball files (you can use whole_program_pinball or *.pp region pinball directory). In the following example we have give cc.g15_702535.pp as the pinball (region pinball) input  and champsim.so our tracer. This will generate trace with the help of champsim.so pintool. See we can use the pinball as the replcament for input proragm + data.
+./replay_dir.py --pintool=champsim.so --replay_dir=cc.g15_702535.pp
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 To try out PinPlay: 
 ------------------
 No installation should be necessry as pre-built tools (pinplay-driver.so and
