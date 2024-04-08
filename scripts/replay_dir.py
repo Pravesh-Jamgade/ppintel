@@ -97,6 +97,7 @@ class ReplayMulti(object):
 
         #pravesh
         cmd_options.pintool(parser)
+        cmd_options.pintool_options(parser)
 
     def ParseCommandLine(self):
         """
@@ -296,6 +297,11 @@ class ReplayMulti(object):
             command += ' --log_options "' + log_opt + '"'
         if options.playout:
             command += ' --playout '
+        
+        # pravesh
+        if options.pintool_options:
+            print(options.pintool_options)
+            command += ' --pintool_options  " {} " '.format(options.pintool_options) 
 
         # if not options.list:
         #     msg.PrintMsg(command)

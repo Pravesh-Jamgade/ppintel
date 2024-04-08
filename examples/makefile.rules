@@ -55,7 +55,7 @@ TOOL_CXXFLAGS += -faligned-new
 
 CXXFLAGS += ${WARNINGS} $(DBG) $(OPT) ${DEPENDENCYFLAG} 
 
-TOOLNAMES=pinplay-driver pinplay-branch-predictor champsim
+TOOLNAMES=pinplay-driver pinplay-branch-predictor champsim multithread_tracer
 
 TOOLS=${TOOLNAMES:%=$(OBJDIR)/$(PINTOOL_PREFIX)%$(PINTOOL_SUFFIX)}
 $(info "+++++++++++++++++++++++++++++")
@@ -218,6 +218,14 @@ ${OBJDIR}/pinplay-branch-predictor.so:  ${OBJDIR}/pinplay-branch-predictor.${OBJ
 	@echo ""
 	@echo "*********************************"
 	@echo "Moving pinplay-branch-predictor.so to  $(PINPLAY_HOME)/bin/$(TARGET)/"
+	mv $@  $(PINPLAY_HOME)/bin/$(TARGET)/
+	@echo ""
+
+${OBJDIR}/multithread_tracer.so:  ${OBJDIR}/multithread_tracer.${OBJEXT} $(PINPLAY_LIB_HOME)/libpinplay.a $(EXT_LIB_HOME)/libbz2.a $(EXT_LIB_HOME)/libzlib.a $(CONTROLLERLIB)
+	$(LINKER) $(TOOL_LDFLAGS) $(LINK_EXE)$@ $^ $(TOOL_LPATHS) $(TOOL_LIBS) $(MYLIBS) $(EXTRA_LIBS) $(PIN_LIBS) $(DBG)   
+	@echo ""
+	@echo "*********************************"
+	@echo "Moving multithread_tracer.so to  $(PINPLAY_HOME)/bin/$(TARGET)/"
 	mv $@  $(PINPLAY_HOME)/bin/$(TARGET)/
 	@echo ""
 

@@ -106,6 +106,9 @@ class Replayer(object):
         cmd_options.sdehome(parser, '')
         cmd_options.verbose(parser)
 
+        # pravesh
+        cmd_options.pintool_options(parser)
+
         # import pdb;  pdb.set_trace()
         (options, args) = parser.parse_args()
 
@@ -174,6 +177,12 @@ class Replayer(object):
 
         pin_options = ''
         pintool_options = ''
+
+        # pintool_options += options.pintool_options
+        # print("XXXXXXXXX")
+        # print(pintool_options)
+        # exit(0)
+
 
         # Check to see if there is a pinball to replay.
         #
@@ -272,6 +281,10 @@ class Replayer(object):
         # import pdb;  pdb.set_trace()
         if kit_obj.default_knobs:
             pintool_options += ' ' + kit_obj.default_knobs
+        
+        # pravesh
+        if options.pintool_options:
+            pintool_options += options.pintool_options 
 
         # If generating instruction mix (indicated by the knobs -mix/-omix),
         # then can not use a pintool (a restriction imposed by the SDE driver).
@@ -299,6 +312,8 @@ class Replayer(object):
 
         print("PRAVESH ******************")
         print(cmd)
+        # exit(0)
+
         # Print out command line used for pin and pintool
         #
         # import pdb;  pdb.set_trace()

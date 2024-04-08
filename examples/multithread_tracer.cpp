@@ -48,7 +48,7 @@ using namespace INSTLIB;
 
 // LOCALVAR ofstream *outfile;
 FILE* out;
-// string trace_file_name = "xyzzz_champsim.trace";
+string fileName = "xyzzz_champsim.trace";
 
 #define KNOB_LOG_NAME  "log"
 #define KNOB_REPLAY_NAME "replay"
@@ -69,8 +69,8 @@ KNOB<BOOL>KnobLogger(KNOB_MODE_WRITEONCE,  KNOB_FAMILY,
 //                         "phaselen",
 //                         "100000000", 
 //                         "Print branch mispredict stats every these many instructions (and also at the end).\n");
-KNOB<string>KnobTraceFileName(KNOB_MODE_WRITEONCE,  "pintool",
-                     "trace", "xyzzz_champsim.trace", "Name of trace file");
+// KNOB<string>KnobStatFileName(KNOB_MODE_WRITEONCE,  "pintool",
+//                      "statfile", "bimodal.out", "Name of the branch predictor stats file.");
 
 
 INT32 Usage()
@@ -125,7 +125,7 @@ class Xchg
     UINT64 end = 0;
     BOOL found = 0;
     UINT64 count[2] = {0};
-    UINT32 print = 10;
+    UINT32 print = 4;
 
     BOOL within_scope(UINT64 addr)
     {
@@ -143,12 +143,34 @@ Xchg* property = new Xchg();
 
 UINT64 total_loads = 0;
 UINT64 total_stores = 0;
+// total instruction traced for trace
 UINT64 instrCount = 0;
+// total instruction (without any skip)
+UINT64 total_instr = 0;
+
+#define vui vector<uint64_t>
+vui th_total_instr;
+
+// debung total threads
+std::set<uint32_t> th_total_count;
 
 bool start_flag = false;
 bool temp = start_flag;
 
 UINT32 huchback = 0;
+
+// SIMPOINT for each of the thread
+#define pii pair<uint64_t, uint64_t>
+#define vpii vector<pii>
+#define vvpii vector<vpii>
+
+vvpii th_specific_simpoint;
+FILE* simpoint_out;
+string simpoint_file = "";
+KNOB<string>KnobStatFileName(KNOB_MODE_WRITEONCE,  "pintool",
+                     "input", "bimodal.out", "Name of the branch predictor stats file.");
+
+bool trace_on = false;
 
 VOID set_flip(UINT64 RegA, UINT64 RegB, UINT64 RegC)
 {
@@ -432,6 +454,14 @@ VOID InsCount(UINT64* ip, VOID *v)
     }
 }
 
+VOID TotalInsCount(THREADID tid)
+{
+    
+    total_instr++;
+    th_total_instr[tid]++;
+    th_total_count.insert(tid);
+}
+
 VOID WriteToFile(VOID* v)
 {
     Trace* trace = reinterpret_cast<Trace*>(v);
@@ -440,26 +470,59 @@ VOID WriteToFile(VOID* v)
     fwrite(trace, sizeof(Trace), 1, out);
 }
 
-VOID checkSimpoint(THREADID tid)
+VOID checkSimpoint(THREADID tid, VOID* v_total_instr, VOID* v_trace_on)
 {
-    std::cout << "tid " << tid << '\n';
+    uint64_t* th_total_instr = reinterpret_cast<uint64_t*>(v_total_instr);
+    bool* trace_on = reinterpret_cast<bool*>(v_trace_on);
+    // cout << tid << "," << th_total_instr[tid] << '\n';
+    // for(size_t i=0; i< (size_t)th_specific_simpoint[tid].size(); i++)
+    // {
+    //     if(th_total_instr[tid] >= th_specific_simpoint[tid][i].first && 
+    //         th_total_instr[tid] <= th_specific_simpoint[tid][i].second)
+    //     {
+    //     //     if(!trace_on)
+    //     //         std::cout << "tid," << tid << ", simpoint, " << th_specific_simpoint[tid][i].first << ", *, " << th_total_instr[tid]  << ", " << th_specific_simpoint[tid][i].second << '\n';
+            
+    //     //     //allow
+    //     //     trace_on = true;
+    //     }
+    //     else trace_on = false;
+    // }
+   
+    for(auto pr : th_specific_simpoint[tid])
+    {
+        if(th_total_instr[tid] >= pr.first && 
+        th_total_instr[tid] <= pr.second)
+        {
+            // if(!trace_on)
+            //     std::cout << std::dec << "tid," << tid << ", simpoint, " << pr.first << ", *, " << th_total_instr[tid]  << ", " << pr.second << '\n';
+            
+            //allow
+            *trace_on = true;
+        }
+        else *trace_on = false;
+    }
 }
 
 VOID Instruction(INS ins, VOID *v)
 {
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)TotalInsCount, IARG_THREAD_ID, IARG_END);
+
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)checkSimpoint, IARG_THREAD_ID, IARG_PTR, &th_total_instr, IARG_PTR, &trace_on, IARG_END);
+ 
     if ( INS_IsXchg(ins) && INS_OperandReg(ins, 0) == REG_BX && INS_OperandReg(ins, 1) == REG_BX)
     {
       INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)set_flip,  IARG_REG_VALUE, REG_GAX, IARG_REG_VALUE, REG_GBX, IARG_REG_VALUE, REG_GCX, IARG_END);
 
-        if(temp != start_flag)
-        {
-            return;
-        }
+        // // if it is a magic instruction (ROI marker) then donot trace
+        // if(temp != start_flag)
+        // {
+        //     return;
+        // }
     }
 
-    // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)checkSimpoint, IARG_THREAD_ID, IARG_END);
-
-    //KNOB:  It allows the use of SimRoiStart and SimRoiEnd
+    // //KNOB:  It allows the use of SimRoiStart and SimRoiEnd
+    // // if it is ROI Start then keep tracing untill ROI End 
     if(!start_flag)
     {
         return;
@@ -500,6 +563,12 @@ VOID Instruction(INS ins, VOID *v)
 
     // Iterate over each memory operand of the instruction.
     UINT32 memOperands = INS_MemoryOperandCount(ins);
+
+    if(!trace_on && memOperands<=0)
+    {
+        return;
+    }
+
     for (UINT32 memOp = 0; memOp < memOperands; memOp++) 
     {
         if (INS_MemoryOperandIsRead(ins, memOp)) 
@@ -541,7 +610,46 @@ VOID Fini(INT32 code, VOID *v)
                 << ",load(B)," << edge->count[0] << ",store(B)," << edge->count[1] 
                 << ",load(C)," << property->count[0] << ",store(C)," << property->count[1] 
                 << ",total_loads," << total_loads << ",total_stores," << total_stores << ",total_instr," << instrCount <<  '\n'; 
+
+        for(auto e: th_total_count)
+            std::cout << std::dec << e << '\n';
     }
+}
+
+void read_simpoint()
+{
+    // total threads
+    int cth;
+    // thread number
+    int th;
+    // total simpoints per thread
+    int nsims;
+    // simpoint range
+    UINT64 sim_start, sim_end;
+
+    std::cin >> cth;
+    th_specific_simpoint.resize(cth+1);
+    th_total_instr.resize(cth+1);
+
+    // no. of threads
+    while(cth--)
+    {
+        // thread number and number of simpoints
+        std::cin>> th >> nsims;
+
+        th_specific_simpoint[th].resize(nsims);
+
+        // sim regions 
+        std::cout << "TH: " << th << ", NSIMS: " << nsims << '\n';
+        for(int i=0; i< nsims; i++)
+        {
+            std::cin >> sim_start >> sim_end;
+            th_specific_simpoint[th][i] = {sim_start, sim_end};
+
+            std::cout << th_specific_simpoint[th][i].first << "," << th_specific_simpoint[th][i].second << '\n';            
+        }
+    }
+    
 }
 
 int main(int argc, char *argv[])
@@ -550,12 +658,18 @@ int main(int argc, char *argv[])
     {
         std::cout << i << ", " << argv[i] << '\n';
     }
+
+
+
     if( PIN_Init(argc,argv) )
     {
         return Usage();
     }
 
-    out = fopen(KnobTraceFileName.Value().c_str(), "w");
+    out = fopen(fileName.c_str(), "w");
+    freopen(KnobStatFileName.Value().c_str(), "r", stdin);
+    read_simpoint();
+
     // outfile = new ofstream(KnobStatFileName.Value().c_str());
     // bimodal.Activate(KnobPhases, outfile);
     
